@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✨ 茱蒂ㄉ記帳本 ✨</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>✨ 茱蒂ㄉ記帳本 ✨</h1>
+        
+        <!-- 資料備份還原區塊 -->
+        <div class="backup-section">
+            <button onclick="exportData()" class="backup-btn">
+                <i class="fas fa-download"></i> 備份資料
+            </button>
+            <button onclick="importData()" class="backup-btn">
+                <i class="fas fa-upload"></i> 還原資料
+            </button>
+            <input type="file" id="importFile" accept=".json" style="display: none;">
+        </div>
+        
+        <!-- 新增記錄表單 -->
+        <div class="form-container">
+            <h2><i class="fas fa-pen-fancy"></i> 新增記錄</h2>
+            <form id="expenseForm">
+                <div class="form-group">
+                    <label for="date"><i class="far fa-calendar-alt"></i> 日期：</label>
+                    <input type="date" id="date" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="type"><i class="fas fa-exchange-alt"></i> 類型：</label>
+                    <select id="type" required>
+                        <option value="income">收入 💰</option>
+                        <option value="expense">支出 💸</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="category"><i class="fas fa-tags"></i> 類別：</label>
+                    <select id="category" required>
+                        <option value="salary">薪資 💼</option>
+                        <option value="food">飲食 🍱</option>
+                        <option value="transport">交通 🚗</option>
+                        <option value="shopping">購物 🛍️</option>
+                        <option value="savings">儲蓄 💰</option>
+                        <option value="payment">繳費 💳</option>
+                        <option value="other">其他 ✨</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="amount"><i class="fas fa-coins"></i> 金額：</label>
+                    <input type="number" id="amount" min="0" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="description"><i class="fas fa-comment-alt"></i> 描述：</label>
+                    <input type="text" id="description" required>
+                </div>
+                
+                <button type="submit"><i class="fas fa-plus-circle"></i> 新增記錄</button>
+            </form>
+        </div>
+
+        <!-- 收支統計 -->
+        <div class="summary">
+            <h2><i class="fas fa-chart-pie"></i> 收支統計</h2>
+            <div class="summary-content">
+                <p>總收入：<span id="totalIncome">0</span> 元 💰</p>
+                <p>總支出：<span id="totalExpense">0</span> 元 💸</p>
+                <p>結餘：<span id="balance">0</span> 元 💝</p>
+            </div>
+        </div>
+
+        <!-- 圖表區塊 -->
+        <div class="charts-section">
+            <div class="chart-container">
+                <h2><i class="fas fa-chart-line"></i> 收支趨勢</h2>
+                <canvas id="trendChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h2><i class="fas fa-chart-pie"></i> 支出分類</h2>
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 記錄列表 -->
+        <div class="records">
+            <h2><i class="fas fa-list-alt"></i> 記錄列表</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>日期 📅</th>
+                        <th>類型 🔄</th>
+                        <th>類別 🏷️</th>
+                        <th>金額 💰</th>
+                        <th>描述 📝</th>
+                        <th>操作 ⚡</th>
+                    </tr>
+                </thead>
+                <tbody id="recordsList">
+                    <!-- 記錄將在這裡動態添加 -->
+                </tbody>
+            </table>
+            <div id="pagination" class="pagination">
+                <!-- 分頁控制將在這裡動態添加 -->
+            </div>
+        </div>
+
+        <!-- 帳戶餘額紀錄區塊 -->
+        <div class="account-balance">
+            <h2><i class="fas fa-wallet"></i> 帳戶餘額紀錄</h2>
+            
+            <!-- 錢袋視覺化 -->
+            <div class="money-bags">
+                <div class="money-bag">
+                    <h3><i class="fas fa-university"></i> 郵局帳戶</h3>
+                    <div class="bag-container">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <div class="progress-container">
+                            <div id="postProgress" class="progress" style="height: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="bag-info">
+                        <span>郵局帳戶 (台幣)</span>
+                        <span id="postAmount">0</span>
+                    </div>
+                </div>
+                
+                <div class="money-bag">
+                    <h3><i class="fas fa-credit-card"></i> 簽帳卡</h3>
+                    <div class="bag-container">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <div class="progress-container">
+                            <div id="bankProgress" class="progress" style="height: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="bag-info">
+                        <span>簽帳卡 (台幣)</span>
+                        <span id="bankAmount">0</span>
+                    </div>
+                </div>
+                
+                <div class="money-bag">
+                    <h3><i class="fab fa-alipay"></i> 支付寶</h3>
+                    <div class="bag-container">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <div class="progress-container">
+                            <div id="alipayProgress" class="progress" style="height: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="bag-info">
+                        <span>支付寶 (人民幣)</span>
+                        <span id="alipayAmount">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 更新餘額表單 -->
+            <div class="form-container">
+                <h3><i class="fas fa-plus-circle"></i> 更新帳戶餘額</h3>
+                <form id="balanceForm">
+                    <div class="form-group">
+                        <label for="balanceDate"><i class="far fa-calendar-alt"></i> 日期：</label>
+                        <input type="date" id="balanceDate" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="accountType"><i class="fas fa-university"></i> 帳戶類型：</label>
+                        <select id="accountType" required>
+                            <option value="post">郵局帳戶 (台幣)</option>
+                            <option value="bank">簽帳卡 (台幣)</option>
+                            <option value="alipay">支付寶 (人民幣)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="balanceAmount"><i class="fas fa-coins"></i> 餘額：</label>
+                        <input type="number" id="balanceAmount" min="0" step="0.01" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="balanceDescription"><i class="fas fa-comment-alt"></i> 描述：</label>
+                        <input type="text" id="balanceDescription" required>
+                    </div>
+                    
+                    <button type="submit"><i class="fas fa-plus-circle"></i> 更新餘額</button>
+                </form>
+            </div>
+
+            <!-- 餘額趨勢圖 -->
+            <div class="balance-trend">
+                <h3><i class="fas fa-chart-line"></i> 餘額趨勢</h3>
+                <div class="balance-charts">
+                    <div class="balance-chart-item">
+                        <h4><i class="fas fa-university"></i> 郵局帳戶</h4>
+                        <canvas id="postTrendChart"></canvas>
+                    </div>
+                    <div class="balance-chart-item">
+                        <h4><i class="fas fa-credit-card"></i> 簽帳卡</h4>
+                        <canvas id="bankTrendChart"></canvas>
+                    </div>
+                    <div class="balance-chart-item">
+                        <h4><i class="fab fa-alipay"></i> 支付寶</h4>
+                        <canvas id="alipayTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 刷卡記錄區塊 -->
+        <div class="card-records">
+            <h2><i class="fas fa-credit-card"></i> 刷卡記錄</h2>
+            
+            <!-- 限額管理區塊 -->
+            <div class="card-limit-management">
+                <!-- 刷卡限額區塊 -->
+                <div class="card-limit-section">
+                    <h3><i class="fas fa-credit-card"></i> 本月刷卡限額</h3>
+                    <div class="card-limit-content">
+                        <div class="limit-info">
+                            <p>總限額：<span id="totalLimit">19,872</span> 元</p>
+                            <p>已使用：<span id="usedAmount">0</span> 元</p>
+                            <p>剩餘額度：<span id="remainingAmount">19,872</span> 元</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 歷史月份限額記錄 -->
+                <div class="card-limit-history">
+                    <h3><i class="fas fa-history"></i> 歷史月份限額記錄</h3>
+                    <div class="history-content">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>月份</th>
+                                    <th>總限額</th>
+                                    <th>已使用</th>
+                                    <th>剩餘額度</th>
+                                    <th>使用率</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="limitHistoryList">
+                                <!-- 歷史記錄將由 JavaScript 動態添加 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 記錄管理區塊 -->
+            <div class="card-records-management">
+                <!-- 新增刷卡記錄表單 -->
+                <div class="form-container">
+                    <h3><i class="fas fa-plus-circle"></i> 新增刷卡記錄</h3>
+                    <form id="cardExpenseForm">
+                        <div class="form-group">
+                            <label for="cardDate"><i class="far fa-calendar-alt"></i> 日期：</label>
+                            <input type="date" id="cardDate" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="cardAmount"><i class="fas fa-coins"></i> 金額：</label>
+                            <input type="number" id="cardAmount" min="0" step="0.01" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="cardDescription"><i class="fas fa-comment-alt"></i> 描述：</label>
+                            <input type="text" id="cardDescription" required>
+                        </div>
+                        
+                        <button type="submit"><i class="fas fa-plus-circle"></i> 新增刷卡記錄</button>
+                    </form>
+                </div>
+
+                <!-- 刷卡記錄列表 -->
+                <div class="card-records-list">
+                    <h3><i class="fas fa-list-alt"></i> 刷卡記錄列表</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>日期 📅</th>
+                                <th>金額 💰</th>
+                                <th>描述 📝</th>
+                                <th>操作 ⚡</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cardRecordsList">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
