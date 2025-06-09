@@ -874,20 +874,46 @@ document.getElementById('balanceForm').addEventListener('submit', function(e) {
         return;
     }
     
-    // 新增記錄
-    const newRecord = {
-        date: date,
-        type: type,
-        amount: amount,
-        description: description
-    };
+    // 檢查日期是否超過今天
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(date);
+    selectedDate.setHours(0, 0, 0, 0);
     
-    balanceRecords.push(newRecord);
+    if (selectedDate.getTime() > today.getTime()) {
+        alert('不能輸入未來日期的餘額！');
+        return;
+    }
+    
+    // 更新或新增記錄
+    const index = balanceRecords.findIndex(record => 
+        record.date === date && record.type === type
+    );
+    
+    if (index !== -1) {
+        balanceRecords[index].amount = amount;
+        balanceRecords[index].description = description;
+    } else {
+        balanceRecords.push({
+            date: date,
+            type: type,
+            amount: amount,
+            description: description
+        });
+    }
+    
+    // 按日期排序
+    balanceRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    // 儲存到本地存儲
     localStorage.setItem('balanceRecords', JSON.stringify(balanceRecords));
     
-    // 更新顯示
-    updateBalanceDisplay();
-    updateBalanceChart();
+    // 更新所有顯示
+    updateBalanceDisplay();  // 更新錢袋子顯示
+    updateBalanceChart();    // 更新趨勢圖
+    updateBalanceLineChart(); // 更新折線圖
+    updateBalanceBarChart();  // 更新柱狀圖
+    updateBalanceRecordsList(); // 更新記錄列表
     
     // 重置表單
     this.reset();
