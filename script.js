@@ -51,46 +51,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 初始化圖表
 function initCharts() {
-    // 收支趨勢圖
-    const trendCtx = document.getElementById('trendChart').getContext('2d');
-    window.trendChart = new Chart(trendCtx, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [
-                {
-                    label: '收入',
-                    borderColor: '#4a9d8f',
-                    backgroundColor: 'rgba(74, 157, 143, 0.1)',
-                    data: []
-                },
-                {
-                    label: '支出',
-                    borderColor: '#e67e5d',
-                    backgroundColor: 'rgba(230, 126, 93, 0.1)',
-                    data: []
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'top',
-                }
-            }
-        }
-    });
-
     // 支出分類圖
     const categoryCtx = document.getElementById('categoryChart').getContext('2d');
     window.categoryChart = new Chart(categoryCtx, {
         type: 'doughnut',
         data: {
-            labels: ['薪資', '飲食', '交通', '購物', '儲蓄', '繳費', '其他'],
+            labels: ['薪資', '飲食', '交通', '購物', '儲蓄', '繳費', '手續費', '其他'],
             datasets: [{
-                data: [0, 0, 0, 0, 0, 0, 0],
+                data: [0, 0, 0, 0, 0, 0, 0, 0],
                 backgroundColor: [
                     '#2ecc71',  // 薪資 - 翠綠色
                     '#e74c3c',  // 飲食 - 鮮紅色
@@ -98,6 +66,7 @@ function initCharts() {
                     '#f1c40f',  // 購物 - 金黃色
                     '#1abc9c',  // 儲蓄 - 青綠色
                     '#9b59b6',  // 繳費 - 紫色
+                    '#e67e22',  // 手續費 - 橙色
                     '#95a5a6'   // 其他 - 灰色
                 ],
                 borderWidth: 4,
@@ -154,6 +123,38 @@ function initCharts() {
                 animateScale: true,
                 duration: 2000,
                 easing: 'easeOutQuart'
+            }
+        }
+    });
+
+    // 收支趨勢圖
+    const trendCtx = document.getElementById('trendChart').getContext('2d');
+    window.trendChart = new Chart(trendCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: '收入',
+                    borderColor: '#4a9d8f',
+                    backgroundColor: 'rgba(74, 157, 143, 0.1)',
+                    data: []
+                },
+                {
+                    label: '支出',
+                    borderColor: '#e67e5d',
+                    backgroundColor: 'rgba(230, 126, 93, 0.1)',
+                    data: []
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                }
             }
         }
     });
@@ -218,6 +219,7 @@ function getCategoryData() {
         'shopping': 0,
         'savings': 0,
         'payment': 0,
+        'fee': 0,
         'other': 0
     };
 
@@ -390,6 +392,7 @@ function getCategoryName(category) {
         'shopping': '購物 🛍️',
         'savings': '儲蓄 💰',
         'payment': '繳費 💳',
+        'fee': '手續費 💳',
         'other': '其他 ✨'
     };
     return categories[category] || category;
@@ -422,20 +425,81 @@ function updateCardRecordsList() {
     // 按日期排序
     cardRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
     
-    cardRecords.forEach((record, index) => {
+    // 計算總頁數
+    const totalPages = Math.ceil(cardRecords.length / itemsPerPage);
+    
+    // 獲取當前頁的記錄
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentPageRecords = cardRecords.slice(startIndex, endIndex);
+    
+    // 顯示當前頁的記錄
+    currentPageRecords.forEach((record, index) => {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${record.date}</td>
             <td>${record.amount.toLocaleString()}</td>
             <td>${record.description}</td>
             <td>
-                <button class="delete-btn" onclick="deleteCardRecord(${index})">
+                <button class="delete-btn" onclick="deleteCardRecord(${startIndex + index})">
                     <i class="fas fa-trash"></i> 刪除
                 </button>
             </td>
         `;
         cardRecordsList.appendChild(row);
     });
+    
+    // 更新分頁控制
+    updateCardPagination(totalPages);
+}
+
+// 更新刷卡記錄分頁控制
+function updateCardPagination(totalPages) {
+    const paginationContainer = document.createElement('div');
+    paginationContainer.className = 'pagination';
+    
+    // 上一頁按鈕
+    if (currentPage > 1) {
+        const prevButton = document.createElement('button');
+        prevButton.textContent = '上一頁';
+        prevButton.onclick = () => {
+            currentPage--;
+            updateCardRecordsList();
+        };
+        paginationContainer.appendChild(prevButton);
+    }
+    
+    // 頁碼按鈕
+    for (let i = 1; i <= totalPages; i++) {
+        const pageButton = document.createElement('button');
+        pageButton.textContent = i;
+        pageButton.className = i === currentPage ? 'active' : '';
+        pageButton.onclick = () => {
+            currentPage = i;
+            updateCardRecordsList();
+        };
+        paginationContainer.appendChild(pageButton);
+    }
+    
+    // 下一頁按鈕
+    if (currentPage < totalPages) {
+        const nextButton = document.createElement('button');
+        nextButton.textContent = '下一頁';
+        nextButton.onclick = () => {
+            currentPage++;
+            updateCardRecordsList();
+        };
+        paginationContainer.appendChild(nextButton);
+    }
+    
+    // 移除舊的分頁控制（如果存在）
+    const oldPagination = document.querySelector('.card-records-list .pagination');
+    if (oldPagination) {
+        oldPagination.remove();
+    }
+    
+    // 添加新的分頁控制
+    document.querySelector('.card-records-list').appendChild(paginationContainer);
 }
 
 // 刪除刷卡記錄
@@ -955,4 +1019,38 @@ document.getElementById('importFile').addEventListener('change', function(e) {
         };
         reader.readAsText(file);
     }
-}); 
+});
+
+// 更新支出分類圖表
+function updateExpenseChart() {
+    const expenseData = {};
+    const expenseColors = {
+        'food': '#FF6384',
+        'transport': '#36A2EB',
+        'shopping': '#FFCE56',
+        'savings': '#4BC0C0',
+        'payment': '#9966FF',
+        'fee': '#FF9F40',
+        'other': '#C9CBCF'
+    };
+    
+    // 計算各類別支出總額
+    records.forEach(record => {
+        if (record.type === 'expense') {
+            if (!expenseData[record.category]) {
+                expenseData[record.category] = 0;
+            }
+            expenseData[record.category] += record.amount;
+        }
+    });
+    
+    // 準備圖表數據
+    const labels = Object.keys(expenseData).map(category => getCategoryName(category));
+    const data = Object.values(expenseData);
+    const backgroundColors = Object.keys(expenseData).map(category => expenseColors[category] || '#C9CBCF');
+    
+    // 更新圖表
+    window.categoryChart.data.datasets[0].data = data;
+    window.categoryChart.data.datasets[0].backgroundColor = backgroundColors;
+    window.categoryChart.update();
+} 
