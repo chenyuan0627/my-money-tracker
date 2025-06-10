@@ -47,6 +47,13 @@ document.addEventListener('DOMContentLoaded', function() {
     initBalanceChart();
     checkAndUpdateMonthlyLimit();
     updateLimitHistory();
+    
+    // 設定總限額輸入框的初始值
+    document.getElementById('totalLimit').value = cardLimit;
+    
+    // 更新總限額顯示
+    updateTotalLimit();
+    updateBalanceTrendChart();  // 添加這行來初始化餘額趨勢圖表
 });
 
 // 初始化圖表
@@ -625,8 +632,45 @@ function updateLimitHistoryWithNewRecord(newRecord) {
     updateLimitHistory();
 }
 
-// 更新歷史記錄顯示
+// 更新歷史記錄
 function updateLimitHistory() {
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentYear = currentDate.getFullYear();
+    
+    // 計算當月已使用金額
+    const currentMonthUsed = cardRecords
+        .filter(record => {
+            const recordDate = new Date(record.date);
+            return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, record) => sum + parseFloat(record.amount), 0);
+    
+    // 更新當月記錄
+    const currentMonthRecord = {
+        month: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`,
+        limit: cardLimit,
+        used: currentMonthUsed,
+        remaining: cardLimit - currentMonthUsed
+    };
+    
+    // 更新或添加當月記錄
+    const existingIndex = limitHistory.findIndex(record => record.month === currentMonthRecord.month);
+    if (existingIndex !== -1) {
+        limitHistory[existingIndex] = currentMonthRecord;
+    } else {
+        limitHistory.unshift(currentMonthRecord);
+    }
+    
+    // 儲存更新後的歷史記錄
+    localStorage.setItem('limitHistory', JSON.stringify(limitHistory));
+    
+    // 更新歷史記錄顯示
+    updateLimitHistoryDisplay();
+}
+
+// 更新歷史記錄顯示
+function updateLimitHistoryDisplay() {
     const historyList = document.getElementById('limitHistoryList');
     historyList.innerHTML = '';
     
@@ -665,9 +709,35 @@ function deleteLimitHistory(index) {
     if (confirm('確定要刪除這筆歷史月份限額記錄嗎？')) {
         limitHistory.splice(index, 1);
         localStorage.setItem('limitHistory', JSON.stringify(limitHistory));
-        updateLimitHistory();
+        updateLimitHistoryDisplay();
     }
 }
+
+// 更新總限額顯示
+function updateTotalLimit() {
+    const totalLimit = parseFloat(document.getElementById('totalLimit').value) || 0;
+    const usedAmount = parseFloat(document.getElementById('usedAmount').textContent.replace(/,/g, '')) || 0;
+    
+    // 更新剩餘額度顯示
+    const remainingAmount = totalLimit - usedAmount;
+    document.getElementById('remainingAmount').textContent = remainingAmount.toLocaleString();
+    
+    // 更新 cardLimit
+    cardLimit = totalLimit;
+    localStorage.setItem('cardLimit', cardLimit.toString());
+    
+    // 更新歷史記錄中的限額
+    updateLimitHistory();
+}
+
+// 監聽總限額輸入變化
+document.getElementById('totalLimit').addEventListener('change', function() {
+    const newLimit = parseFloat(this.value) || 0;
+    if (newLimit < 0) {
+        this.value = 0;
+    }
+    updateTotalLimit();
+});
 
 // 更新帳戶餘額顯示
 function updateBalanceDisplay() {
@@ -1079,4 +1149,100 @@ function updateExpenseChart() {
     window.categoryChart.data.datasets[0].data = data;
     window.categoryChart.data.datasets[0].backgroundColor = backgroundColors;
     window.categoryChart.update();
+}
+
+// 更新餘額趨勢圖表
+function updateBalanceTrendChart() {
+    const ctx = document.getElementById('balanceTrendChart').getContext('2d');
+    
+    // 按日期排序（從舊到新）
+    const sortedRecords = [...balanceRecords].sort((a, b) => a.date.localeCompare(b.date));
+    
+    const data = {
+        labels: sortedRecords.map(record => record.date),
+        datasets: [{
+            label: '帳戶餘額',
+            data: sortedRecords.map(record => record.amount),
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1,
+            fill: false
+        }]
+    };
+    
+    const config = {
+        type: 'line',
+        data: data,
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '餘額趨勢'
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString() + ' 元';
+                        }
+                    }
+                }
+            }
+        }
+    };
+    
+    // 如果圖表已存在，則更新它
+    if (window.balanceTrendChart) {
+        window.balanceTrendChart.data = data;
+        window.balanceTrendChart.update();
+    } else {
+        // 否則創建新的圖表
+        window.balanceTrendChart = new Chart(ctx, config);
+    }
+}
+
+// 更新帳戶餘額
+function updateBalance() {
+    const date = document.getElementById('balanceDate').value;
+    const amount = parseFloat(document.getElementById('balanceAmount').value);
+    
+    if (isNaN(amount)) {
+        alert('請輸入有效的金額！');
+        return;
+    }
+    
+    // 新增餘額記錄
+    const newRecord = {
+        date: date,
+        amount: amount
+    };
+    
+    balanceRecords.unshift(newRecord);
+    localStorage.setItem('balanceRecords', JSON.stringify(balanceRecords));
+    
+    // 更新顯示
+    updateBalanceDisplay();
+    
+    // 更新餘額趨勢圖表
+    if (window.balanceTrendChart) {
+        const sortedRecords = [...balanceRecords].sort((a, b) => a.date.localeCompare(b.date));
+        window.balanceTrendChart.data.labels = sortedRecords.map(record => record.date);
+        window.balanceTrendChart.data.datasets[0].data = sortedRecords.map(record => record.amount);
+        window.balanceTrendChart.update();
+    }
+    
+    // 清空輸入框
+    document.getElementById('balanceAmount').value = '';
+}
+
+// 修改 deleteBalanceRecord 函數
+function deleteBalanceRecord(index) {
+    if (confirm('確定要刪除這筆餘額記錄嗎？')) {
+        balanceRecords.splice(index, 1);
+        localStorage.setItem('balanceRecords', JSON.stringify(balanceRecords));
+        updateBalanceDisplay();
+        updateBalanceTrendChart();  // 添加這行來更新餘額趨勢圖表
+    }
 } 
