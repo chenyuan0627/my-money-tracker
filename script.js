@@ -67,14 +67,14 @@ function initCharts() {
             datasets: [{
                 data: [0, 0, 0, 0, 0, 0, 0, 0],
                 backgroundColor: [
-                    '#2ecc71',  // 薪資 - 翠綠色
-                    '#e74c3c',  // 飲食 - 鮮紅色
-                    '#3498db',  // 交通 - 天藍色
-                    '#f1c40f',  // 購物 - 金黃色
-                    '#1abc9c',  // 儲蓄 - 青綠色
-                    '#9b59b6',  // 繳費 - 紫色
-                    '#e67e22',  // 手續費 - 橙色
-                    '#95a5a6'   // 其他 - 灰色
+                    '#FFB3BA',  // 粉紅馬卡龍
+                    '#BAFFC9',  // 薄荷馬卡龍
+                    '#BAE1FF',  // 天藍馬卡龍
+                    '#FFFFBA',  // 檸檬馬卡龍
+                    '#FFE4BA',  // 杏桃馬卡龍
+                    '#E8BAFF',  // 薰衣草馬卡龍
+                    '#FFD4BA',  // 珊瑚馬卡龍
+                    '#BAFFE4'   // 薄荷綠馬卡龍
                 ],
                 borderWidth: 4,
                 borderColor: '#ffffff',
@@ -162,6 +162,16 @@ function initCharts() {
                 legend: {
                     position: 'top',
                 }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45,
+                        autoSkip: true,
+                        maxTicksLimit: 15
+                    }
+                }
             }
         }
     });
@@ -172,7 +182,7 @@ function initCharts() {
 // 更新圖表
 function updateCharts() {
     // 更新收支趨勢圖
-    const dates = getLast7Days();
+    const dates = getLast30Days();
     const trendData = getTrendData(dates);
     
     window.trendChart.data.labels = trendData.labels;
@@ -186,10 +196,10 @@ function updateCharts() {
     window.categoryChart.update();
 }
 
-// 獲取最近7天的日期
-function getLast7Days() {
+// 獲取最近30天的日期
+function getLast30Days() {
     const dates = [];
-    for (let i = 6; i >= 0; i--) {
+    for (let i = 29; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
         dates.push(date.toISOString().split('T')[0]);
@@ -201,7 +211,10 @@ function getLast7Days() {
 function getTrendData(dates) {
     const income = new Array(dates.length).fill(0);
     const expense = new Array(dates.length).fill(0);
-    const labels = dates.map(date => date.slice(5)); // 只顯示月-日
+    const labels = dates.map(date => {
+        const d = new Date(date);
+        return `${d.getMonth() + 1}/${d.getDate()}`;
+    });
 
     records.forEach(record => {
         const index = dates.indexOf(record.date);
