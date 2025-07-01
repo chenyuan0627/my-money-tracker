@@ -63,14 +63,15 @@ function initCharts() {
     window.categoryChart = new Chart(categoryCtx, {
         type: 'doughnut',
         data: {
-            labels: ['薪資', '飲食', '交通', '購物', '儲蓄', '繳費', '手續費', '其他'],
+            labels: ['薪資', '飲食', '交通', '購物', '娛樂', '儲蓄', '繳費', '手續費', '其他'],
             datasets: [{
-                data: [0, 0, 0, 0, 0, 0, 0, 0],
+                data: [0, 0, 0, 0, 0, 0, 0, 0, 0],
                 backgroundColor: [
                     '#FFB3BA',  // 粉紅馬卡龍
                     '#BAFFC9',  // 薄荷馬卡龍
                     '#BAE1FF',  // 天藍馬卡龍
                     '#FFFFBA',  // 檸檬馬卡龍
+                    '#FF6B9D',  // 娛樂粉紅
                     '#FFE4BA',  // 杏桃馬卡龍
                     '#E8BAFF',  // 薰衣草馬卡龍
                     '#FFD4BA',  // 珊瑚馬卡龍
@@ -191,9 +192,7 @@ function updateCharts() {
     window.trendChart.update();
 
     // 更新支出分類圖
-    const categoryData = getCategoryData();
-    window.categoryChart.data.datasets[0].data = categoryData;
-    window.categoryChart.update();
+    updateExpenseChart();
 }
 
 // 獲取最近30天的日期
@@ -237,6 +236,7 @@ function getCategoryData() {
         'food': 0,
         'transport': 0,
         'shopping': 0,
+        'entertainment': 0,
         'savings': 0,
         'payment': 0,
         'fee': 0,
@@ -403,6 +403,24 @@ function deleteRecord(id) {
     }
 }
 
+// 獲取刷卡週期月份（每月5號到下個月4號）
+function getBillingCycleMonth(date) {
+    const targetDate = new Date(date);
+    const day = targetDate.getDate();
+    
+    // 如果日期是1-4號，屬於上個月的週期
+    if (day >= 1 && day <= 4) {
+        targetDate.setMonth(targetDate.getMonth() - 1);
+    }
+    
+    return `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// 獲取當前刷卡週期月份
+function getCurrentBillingCycleMonth() {
+    return getBillingCycleMonth(new Date());
+}
+
 // 獲取類別名稱
 function getCategoryName(category) {
     const categories = {
@@ -410,6 +428,7 @@ function getCategoryName(category) {
         'food': '飲食 🍱',
         'transport': '交通 🚗',
         'shopping': '購物 🛍️',
+        'entertainment': '娛樂 🎮',
         'savings': '儲蓄 💰',
         'payment': '繳費 💳',
         'fee': '手續費 💳',
@@ -420,11 +439,10 @@ function getCategoryName(category) {
 
 // 更新刷卡使用情況
 function updateCardUsage() {
-    const currentDate = new Date();
+    const currentBillingCycle = getCurrentBillingCycleMonth();
     const usedAmount = cardRecords.reduce((sum, record) => {
-        const recordDate = new Date(record.date);
-        if (recordDate.getMonth() === currentDate.getMonth() && 
-            recordDate.getFullYear() === currentDate.getFullYear()) {
+        const recordBillingCycle = getBillingCycleMonth(record.date);
+        if (recordBillingCycle === currentBillingCycle) {
             return sum + parseFloat(record.amount);
         }
         return sum;
@@ -540,11 +558,10 @@ function deleteCardRecord(index) {
 
 // 更新歷史月份限額記錄（刪除記錄時）
 function updateLimitHistoryWithDeletedRecord(deletedRecord) {
-    const recordDate = new Date(deletedRecord.date);
-    const recordMonth = `${recordDate.getFullYear()}-${String(recordDate.getMonth() + 1).padStart(2, '0')}`;
+    const recordBillingCycle = getBillingCycleMonth(deletedRecord.date);
     
     // 找到對應月份的記錄
-    const existingRecordIndex = limitHistory.findIndex(record => record.month === recordMonth);
+    const existingRecordIndex = limitHistory.findIndex(record => record.month === recordBillingCycle);
     
     if (existingRecordIndex !== -1) {
         // 更新現有記錄
@@ -572,17 +589,15 @@ document.getElementById('cardExpenseForm').addEventListener('submit', function(e
     const description = document.getElementById('cardDescription').value;
     
     // 檢查是否超過限額
-    const recordDate = new Date(date);
-    const currentDate = new Date();
-    const isCurrentMonth = recordDate.getMonth() === currentDate.getMonth() && 
-                          recordDate.getFullYear() === currentDate.getFullYear();
+    const recordBillingCycle = getBillingCycleMonth(date);
+    const currentBillingCycle = getCurrentBillingCycleMonth();
+    const isCurrentBillingCycle = recordBillingCycle === currentBillingCycle;
     
-    // 如果是當月的記錄，才檢查限額
-    if (isCurrentMonth) {
+    // 如果是當前週期的記錄，才檢查限額
+    if (isCurrentBillingCycle) {
         const currentUsed = cardRecords.reduce((sum, record) => {
-            const recordDate = new Date(record.date);
-            if (recordDate.getMonth() === currentDate.getMonth() && 
-                recordDate.getFullYear() === currentDate.getFullYear()) {
+            const recordBillingCycle = getBillingCycleMonth(record.date);
+            if (recordBillingCycle === currentBillingCycle) {
                 return sum + parseFloat(record.amount);
             }
             return sum;
@@ -618,11 +633,10 @@ document.getElementById('cardExpenseForm').addEventListener('submit', function(e
 
 // 更新歷史月份限額記錄
 function updateLimitHistoryWithNewRecord(newRecord) {
-    const recordDate = new Date(newRecord.date);
-    const recordMonth = `${recordDate.getFullYear()}-${String(recordDate.getMonth() + 1).padStart(2, '0')}`;
+    const recordBillingCycle = getBillingCycleMonth(newRecord.date);
     
     // 檢查是否已存在該月份的記錄
-    const existingRecordIndex = limitHistory.findIndex(record => record.month === recordMonth);
+    const existingRecordIndex = limitHistory.findIndex(record => record.month === recordBillingCycle);
     
     if (existingRecordIndex !== -1) {
         // 更新現有記錄
@@ -631,11 +645,12 @@ function updateLimitHistoryWithNewRecord(newRecord) {
         record.remaining = record.limit - record.used;
     } else {
         // 創建新記錄
+        const isCurrentBillingCycle = recordBillingCycle === getCurrentBillingCycleMonth();
         const newHistoryRecord = {
-            month: recordMonth,
-            limit: recordDate.getMonth() === new Date().getMonth() ? cardLimit : 20000, // 如果是當月使用當前限額，否則使用20000
+            month: recordBillingCycle,
+            limit: isCurrentBillingCycle ? cardLimit : 20000, // 如果是當前週期使用當前限額，否則使用20000
             used: parseFloat(newRecord.amount),
-            remaining: recordDate.getMonth() === new Date().getMonth() ? cardLimit - parseFloat(newRecord.amount) : 20000 - parseFloat(newRecord.amount)
+            remaining: isCurrentBillingCycle ? cardLimit - parseFloat(newRecord.amount) : 20000 - parseFloat(newRecord.amount)
         };
         limitHistory.unshift(newHistoryRecord);
     }
@@ -647,32 +662,30 @@ function updateLimitHistoryWithNewRecord(newRecord) {
 
 // 更新歷史記錄
 function updateLimitHistory() {
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth();
-    const currentYear = currentDate.getFullYear();
+    const currentBillingCycle = getCurrentBillingCycleMonth();
     
-    // 計算當月已使用金額
-    const currentMonthUsed = cardRecords
+    // 計算當前週期已使用金額
+    const currentBillingCycleUsed = cardRecords
         .filter(record => {
-            const recordDate = new Date(record.date);
-            return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
+            const recordBillingCycle = getBillingCycleMonth(record.date);
+            return recordBillingCycle === currentBillingCycle;
         })
         .reduce((sum, record) => sum + parseFloat(record.amount), 0);
     
-    // 更新當月記錄
-    const currentMonthRecord = {
-        month: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`,
+    // 更新當前週期記錄
+    const currentBillingCycleRecord = {
+        month: currentBillingCycle,
         limit: cardLimit,
-        used: currentMonthUsed,
-        remaining: cardLimit - currentMonthUsed
+        used: currentBillingCycleUsed,
+        remaining: cardLimit - currentBillingCycleUsed
     };
     
-    // 更新或添加當月記錄
-    const existingIndex = limitHistory.findIndex(record => record.month === currentMonthRecord.month);
+    // 更新或添加當前週期記錄
+    const existingIndex = limitHistory.findIndex(record => record.month === currentBillingCycleRecord.month);
     if (existingIndex !== -1) {
-        limitHistory[existingIndex] = currentMonthRecord;
+        limitHistory[existingIndex] = currentBillingCycleRecord;
     } else {
-        limitHistory.unshift(currentMonthRecord);
+        limitHistory.unshift(currentBillingCycleRecord);
     }
     
     // 儲存更新後的歷史記錄
@@ -703,7 +716,12 @@ function updateLimitHistoryDisplay() {
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${record.month}</td>
-            <td>${record.limit.toLocaleString()} 元</td>
+            <td>
+                <input type="number" value="${record.limit}" min="0" step="1000" 
+                       style="width: 100px; text-align: center; border: 1px solid var(--navy-blue); border-radius: 5px; padding: 5px;"
+                       onchange="updateHistoryLimit(${index}, this.value)">
+                元
+            </td>
             <td>${record.used.toLocaleString()} 元</td>
             <td>${record.remaining.toLocaleString()} 元</td>
             <td class="${usageClass}">${usageRate}%</td>
@@ -715,6 +733,29 @@ function updateLimitHistoryDisplay() {
         `;
         historyList.appendChild(row);
     });
+}
+
+// 更新歷史月份限額
+function updateHistoryLimit(index, newLimit) {
+    const newLimitValue = parseFloat(newLimit) || 0;
+    if (newLimitValue < 0) {
+        alert('限額不能為負數！');
+        updateLimitHistoryDisplay(); // 重新顯示以恢復原值
+        return;
+    }
+    
+    // 更新限額
+    limitHistory[index].limit = newLimitValue;
+    limitHistory[index].remaining = newLimitValue - limitHistory[index].used;
+    
+    // 保存到本地存儲
+    localStorage.setItem('limitHistory', JSON.stringify(limitHistory));
+    
+    // 重新顯示以更新剩餘額度和使用率
+    updateLimitHistoryDisplay();
+    
+    // 顯示成功訊息
+    console.log(`已更新 ${limitHistory[index].month} 的限額為 ${newLimitValue.toLocaleString()} 元`);
 }
 
 // 刪除歷史月份限額記錄
@@ -1006,32 +1047,33 @@ document.getElementById('balanceForm').addEventListener('submit', function(e) {
 // 檢查是否需要更新本月限額
 function checkAndUpdateMonthlyLimit() {
     const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
     
-    // 檢查是否為每月6號
-    if (today.getDate() === 6) {
+    // 檢查是否為每月5號（新的刷卡週期開始日）
+    if (today.getDate() === 5) {
         // 檢查是否已經更新過本月限額
         const lastUpdate = localStorage.getItem('lastLimitUpdate');
         const lastUpdateDate = lastUpdate ? new Date(lastUpdate) : null;
         
-        if (!lastUpdateDate || lastUpdateDate.getMonth() !== currentMonth || lastUpdateDate.getFullYear() !== currentYear) {
-            // 保存上個月的記錄
-            const lastMonthUsed = cardRecords.reduce((sum, record) => {
-                const recordDate = new Date(record.date);
-                if (recordDate.getMonth() === (currentMonth === 0 ? 11 : currentMonth - 1) && 
-                    recordDate.getFullYear() === (currentMonth === 0 ? currentYear - 1 : currentYear)) {
+        if (!lastUpdateDate || lastUpdateDate.getDate() !== 5 || 
+            lastUpdateDate.getMonth() !== today.getMonth() || 
+            lastUpdateDate.getFullYear() !== today.getFullYear()) {
+            
+            // 計算上個刷卡週期的使用金額
+            const lastBillingCycle = getBillingCycleMonth(new Date(today.getFullYear(), today.getMonth(), 4)); // 上個週期的最後一天
+            const lastBillingCycleUsed = cardRecords.reduce((sum, record) => {
+                const recordBillingCycle = getBillingCycleMonth(record.date);
+                if (recordBillingCycle === lastBillingCycle) {
                     return sum + parseFloat(record.amount);
                 }
                 return sum;
             }, 0);
             
-            // 添加上個月的記錄到歷史記錄中
-            const lastMonthRecord = {
-                month: `${currentYear}-${String(currentMonth === 0 ? 12 : currentMonth).padStart(2, '0')}`,
+            // 添加上個刷卡週期的記錄到歷史記錄中
+            const lastBillingCycleRecord = {
+                month: lastBillingCycle,
                 limit: cardLimit,
-                used: lastMonthUsed,
-                remaining: cardLimit - lastMonthUsed
+                used: lastBillingCycleUsed,
+                remaining: cardLimit - lastBillingCycleUsed
             };
             
             // 確保 limitHistory 是陣列
@@ -1039,10 +1081,10 @@ function checkAndUpdateMonthlyLimit() {
                 limitHistory = [];
             }
             
-            limitHistory.unshift(lastMonthRecord);
+            limitHistory.unshift(lastBillingCycleRecord);
             localStorage.setItem('limitHistory', JSON.stringify(limitHistory));
             
-            // 重置本月記錄
+            // 重置當前週期記錄
             cardRecords = [];
             localStorage.setItem('cardRecords', JSON.stringify(cardRecords));
             
@@ -1137,28 +1179,35 @@ function updateExpenseChart() {
         'food': '#FF6384',
         'transport': '#36A2EB',
         'shopping': '#FFCE56',
+        'entertainment': '#FF6B9D',
         'savings': '#4BC0C0',
         'payment': '#9966FF',
         'fee': '#FF9F40',
         'other': '#C9CBCF'
     };
     
+    // 定義所有支出類別（排除收入類別）
+    const allExpenseCategories = ['food', 'transport', 'shopping', 'entertainment', 'savings', 'payment', 'fee', 'other'];
+    
+    // 初始化所有支出類別為0
+    allExpenseCategories.forEach(category => {
+        expenseData[category] = 0;
+    });
+    
     // 計算各類別支出總額
     records.forEach(record => {
-        if (record.type === 'expense') {
-            if (!expenseData[record.category]) {
-                expenseData[record.category] = 0;
-            }
+        if (record.type === 'expense' && expenseData.hasOwnProperty(record.category)) {
             expenseData[record.category] += record.amount;
         }
     });
     
     // 準備圖表數據
-    const labels = Object.keys(expenseData).map(category => getCategoryName(category));
-    const data = Object.values(expenseData);
-    const backgroundColors = Object.keys(expenseData).map(category => expenseColors[category] || '#C9CBCF');
+    const labels = allExpenseCategories.map(category => getCategoryName(category));
+    const data = allExpenseCategories.map(category => expenseData[category]);
+    const backgroundColors = allExpenseCategories.map(category => expenseColors[category] || '#C9CBCF');
     
     // 更新圖表
+    window.categoryChart.data.labels = labels;
     window.categoryChart.data.datasets[0].data = data;
     window.categoryChart.data.datasets[0].backgroundColor = backgroundColors;
     window.categoryChart.update();
