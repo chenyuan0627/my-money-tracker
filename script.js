@@ -13,7 +13,7 @@ const itemsPerPage = 10;
 const accountLimits = {
     post: 1200000,    // 郵局帳戶上限
     bank: 50000,      // 簽帳卡上限
-    alipay: 1000      // 支付寶上限
+    alipay: 2000      // 支付寶上限
 };
 
 // 當頁面載入時
