@@ -7,6 +7,7 @@ let limitHistory = JSON.parse(localStorage.getItem('limitHistory')) || [];
 
 // 分頁相關變數
 let currentPage = 1;
+let currentCardPage = 1; // 刷卡記錄專用的分頁變數
 const itemsPerPage = 10;
 
 // 帳戶限額設定
@@ -37,6 +38,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // 儲存正確的 cardLimit 格式
     localStorage.setItem('cardLimit', cardLimit.toString());
     
+    // 初始化月份選擇器
+    initMonthSelector();
+    
     // 載入記錄
     updateRecordsList();
     updateStats();
@@ -55,6 +59,51 @@ document.addEventListener('DOMContentLoaded', function() {
     updateTotalLimit();
     updateBalanceTrendChart();  // 添加這行來初始化餘額趨勢圖表
 });
+
+// 初始化月份選擇器
+function initMonthSelector() {
+    const monthSelector = document.getElementById('monthSelector');
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+    
+    // 獲取所有記錄的日期，計算可用的月份
+    const availableMonths = new Set();
+    
+    // 添加當前月份
+    availableMonths.add(`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`);
+    
+    // 從記錄中提取月份
+    records.forEach(record => {
+        const date = new Date(record.date);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        availableMonths.add(monthKey);
+    });
+    
+    // 轉換為陣列並排序（從新到舊）
+    const sortedMonths = Array.from(availableMonths).sort((a, b) => b.localeCompare(a));
+    
+    // 清空選擇器
+    monthSelector.innerHTML = '';
+    
+    // 添加選項
+    sortedMonths.forEach(monthKey => {
+        const [year, month] = monthKey.split('-');
+        const option = document.createElement('option');
+        option.value = monthKey;
+        option.textContent = `${year}年${parseInt(month)}月`;
+        monthSelector.appendChild(option);
+    });
+    
+    // 設定當前月份為預設選項
+    const currentMonthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    monthSelector.value = currentMonthKey;
+    
+    // 添加變更事件監聽器
+    monthSelector.addEventListener('change', function() {
+        updateTrendChart();
+    });
+}
 
 // 初始化圖表
 function initCharts() {
@@ -177,22 +226,207 @@ function initCharts() {
         }
     });
 
+    // 刷卡分類堆疊條形圖
+    const cardCategoryStackedCtx = document.getElementById('cardCategoryStackedChart').getContext('2d');
+    window.cardCategoryStackedChart = new Chart(cardCategoryStackedCtx, {
+        type: 'bar',
+        data: {
+            labels: ['金額比例', '次數比例'],
+            datasets: [
+                {
+                    label: '飲食',
+                    data: [0, 0],
+                    backgroundColor: '#FF6384',
+                    borderWidth: 0
+                },
+                {
+                    label: '交通',
+                    data: [0, 0],
+                    backgroundColor: '#36A2EB',
+                    borderWidth: 0
+                },
+                {
+                    label: '購物',
+                    data: [0, 0],
+                    backgroundColor: '#FFCE56',
+                    borderWidth: 0
+                },
+                {
+                    label: '娛樂',
+                    data: [0, 0],
+                    backgroundColor: '#FF6B9D',
+                    borderWidth: 0
+                },
+                {
+                    label: '繳費',
+                    data: [0, 0],
+                    backgroundColor: '#9966FF',
+                    borderWidth: 0
+                },
+                {
+                    label: '手續費',
+                    data: [0, 0],
+                    backgroundColor: '#FF9F40',
+                    borderWidth: 0
+                },
+                {
+                    label: '其他',
+                    data: [0, 0],
+                    backgroundColor: '#C9CBCF',
+                    borderWidth: 0
+                }
+            ]
+        },
+        options: {
+            indexAxis: 'y', // 橫向條形圖
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    stacked: true,
+                    beginAtZero: true,
+                    max: 100, // 百分比最大值為100%
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: '百分比 (%)'
+                    }
+                },
+                y: {
+                    stacked: true,
+                    ticks: {
+                        font: {
+                            size: 12,
+                            weight: 'bold',
+                            family: "'Microsoft JhengHei', sans-serif"
+                        },
+                        color: '#2c3e50'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        font: {
+                            size: 12,
+                            weight: 'bold',
+                            family: "'Microsoft JhengHei', sans-serif"
+                        },
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        color: '#2c3e50'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    padding: 12,
+                    titleFont: {
+                        size: 14,
+                        weight: 'bold'
+                    },
+                    bodyFont: {
+                        size: 12
+                    },
+                    callbacks: {
+                        title: function(context) {
+                            const dataIndex = context[0].dataIndex;
+                            return dataIndex === 0 ? '金額比例' : '次數比例';
+                        },
+                        label: function(context) {
+                            const label = context.dataset.label || '';
+                            const value = context.raw || 0;
+                            const dataIndex = context.dataIndex;
+                            const unit = dataIndex === 0 ? '金額' : '次數';
+                            return `${label} ${unit}: ${value.toFixed(1)}%`;
+                        }
+                    }
+                }
+            },
+            animation: {
+                duration: 1500,
+                easing: 'easeOutQuart'
+            }
+        }
+    });
+
     updateCharts();
 }
 
 // 更新圖表
 function updateCharts() {
     // 更新收支趨勢圖
-    const dates = getLast30Days();
-    const trendData = getTrendData(dates);
+    updateTrendChart();
+    // 更新支出分類圖
+    updateExpenseChart();
+    // 更新刷卡分類堆疊條形圖
+    updateCardCategoryStackedChart();
+}
+
+// 更新趨勢圖表
+function updateTrendChart() {
+    const monthSelector = document.getElementById('monthSelector');
+    const selectedMonth = monthSelector ? monthSelector.value : null;
+    
+    let trendData;
+    if (selectedMonth) {
+        // 根據選擇的月份獲取數據
+        trendData = getMonthlyTrendData(selectedMonth);
+    } else {
+        // 預設顯示最近30天
+        const dates = getLast30Days();
+        trendData = getTrendData(dates);
+    }
     
     window.trendChart.data.labels = trendData.labels;
     window.trendChart.data.datasets[0].data = trendData.income;
     window.trendChart.data.datasets[1].data = trendData.expense;
     window.trendChart.update();
+}
 
-    // 更新支出分類圖
-    updateExpenseChart();
+// 獲取指定月份的趨勢數據
+function getMonthlyTrendData(monthKey) {
+    const [year, month] = monthKey.split('-');
+    const targetYear = parseInt(year);
+    const targetMonth = parseInt(month) - 1; // JavaScript 月份從0開始
+    
+    // 獲取該月份的所有日期
+    const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+    const dates = [];
+    const labels = [];
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(targetYear, targetMonth, day);
+        const dateString = date.toISOString().split('T')[0];
+        dates.push(dateString);
+        labels.push(`${targetMonth + 1}/${day}`);
+    }
+    
+    // 初始化收入和支出陣列
+    const income = new Array(dates.length).fill(0);
+    const expense = new Array(dates.length).fill(0);
+    
+    // 計算每日的收入和支出
+    records.forEach(record => {
+        const recordDate = new Date(record.date);
+        if (recordDate.getFullYear() === targetYear && recordDate.getMonth() === targetMonth) {
+            const dayIndex = recordDate.getDate() - 1;
+            if (dayIndex >= 0 && dayIndex < dates.length) {
+                if (record.type === 'income') {
+                    income[dayIndex] += record.amount;
+                } else {
+                    expense[dayIndex] += record.amount;
+                }
+            }
+        }
+    });
+    
+    return { labels, income, expense };
 }
 
 // 獲取最近30天的日期
@@ -263,18 +497,48 @@ document.getElementById('expenseForm').addEventListener('submit', function(e) {
     const amount = parseFloat(document.getElementById('amount').value);
     const description = document.getElementById('description').value;
     
-    // 創建新記錄
-    const newRecord = {
-        id: Date.now(),
-        date: date,
-        type: type,
-        category: category,
-        amount: amount,
-        description: description
-    };
+    // 檢查是否為編輯模式
+    const editId = this.getAttribute('data-edit-id');
     
-    // 添加到記錄陣列
-    records.push(newRecord);
+    if (editId) {
+        // 編輯模式：更新現有記錄
+        const recordIndex = records.findIndex(record => record.id === parseInt(editId));
+        if (recordIndex !== -1) {
+            records[recordIndex] = {
+                id: parseInt(editId),
+                date: date,
+                type: type,
+                category: category,
+                amount: amount,
+                description: description
+            };
+            
+            // 取消編輯模式
+            cancelEdit();
+            
+            alert('記錄已成功更新！');
+        } else {
+            alert('找不到要更新的記錄！');
+            return;
+        }
+    } else {
+        // 新增模式：創建新記錄
+        const newRecord = {
+            id: Date.now(),
+            date: date,
+            type: type,
+            category: category,
+            amount: amount,
+            description: description
+        };
+        
+        // 添加到記錄陣列
+        records.push(newRecord);
+        
+        // 重置表單
+        this.reset();
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+    }
     
     // 保存到 localStorage
     localStorage.setItem('records', JSON.stringify(records));
@@ -282,11 +546,8 @@ document.getElementById('expenseForm').addEventListener('submit', function(e) {
     // 更新顯示
     updateRecordsList();
     updateStats();
+    initMonthSelector(); // 重新初始化月份選擇器以包含新的月份
     updateCharts();
-    
-    // 重置表單
-    this.reset();
-    document.getElementById('date').value = today;
 });
 
 // 更新記錄列表
@@ -315,6 +576,9 @@ function updateRecordsList() {
             <td>${record.amount.toLocaleString()}</td>
             <td>${record.description}</td>
             <td>
+                <button class="edit-btn" onclick="editRecord(${record.id})">
+                    <i class="fas fa-edit"></i> 編輯
+                </button>
                 <button class="delete-btn" onclick="deleteRecord(${record.id})">
                     <i class="fas fa-trash"></i> 刪除
                 </button>
@@ -332,9 +596,20 @@ function updatePagination(totalPages) {
     const paginationContainer = document.getElementById('pagination');
     paginationContainer.innerHTML = '';
     
+    if (totalPages <= 1) {
+        return; // 如果只有一頁或沒有資料，不顯示分頁控制
+    }
+    
+    const maxPagesDisplay = 10; // 一次最多顯示10個頁面按鈕
+    
+    // 計算當前頁面組的範圍
+    const currentGroup = Math.ceil(currentPage / maxPagesDisplay);
+    const startPage = (currentGroup - 1) * maxPagesDisplay + 1;
+    const endPage = Math.min(startPage + maxPagesDisplay - 1, totalPages);
+    
     // 上一頁按鈕
     const prevButton = document.createElement('button');
-    prevButton.innerHTML = '上一頁';
+    prevButton.innerHTML = '<i class="fas fa-chevron-left"></i> 上一頁';
     prevButton.disabled = currentPage === 1;
     prevButton.onclick = () => {
         if (currentPage > 1) {
@@ -344,8 +619,37 @@ function updatePagination(totalPages) {
     };
     paginationContainer.appendChild(prevButton);
     
-    // 頁碼按鈕
-    for (let i = 1; i <= totalPages; i++) {
+    // 上一組按鈕（如果不是第一組）
+    if (startPage > 1) {
+        const prevGroupButton = document.createElement('button');
+        prevGroupButton.innerHTML = '<i class="fas fa-angle-double-left"></i>';
+        prevGroupButton.title = '上一組頁面';
+        prevGroupButton.onclick = () => {
+            currentPage = startPage - 1;
+            updateRecordsList();
+        };
+        paginationContainer.appendChild(prevGroupButton);
+        
+        // 顯示第一頁
+        const firstPageButton = document.createElement('button');
+        firstPageButton.innerHTML = '1';
+        firstPageButton.onclick = () => {
+            currentPage = 1;
+            updateRecordsList();
+        };
+        paginationContainer.appendChild(firstPageButton);
+        
+        // 省略號
+        if (startPage > 2) {
+            const ellipsis = document.createElement('span');
+            ellipsis.innerHTML = '...';
+            ellipsis.className = 'pagination-ellipsis';
+            paginationContainer.appendChild(ellipsis);
+        }
+    }
+    
+    // 頁碼按鈕（當前組的頁面）
+    for (let i = startPage; i <= endPage; i++) {
         const pageButton = document.createElement('button');
         pageButton.innerHTML = i;
         pageButton.className = currentPage === i ? 'active' : '';
@@ -356,9 +660,38 @@ function updatePagination(totalPages) {
         paginationContainer.appendChild(pageButton);
     }
     
+    // 下一組按鈕（如果不是最後一組）
+    if (endPage < totalPages) {
+        // 省略號
+        if (endPage < totalPages - 1) {
+            const ellipsis = document.createElement('span');
+            ellipsis.innerHTML = '...';
+            ellipsis.className = 'pagination-ellipsis';
+            paginationContainer.appendChild(ellipsis);
+        }
+        
+        // 顯示最後一頁
+        const lastPageButton = document.createElement('button');
+        lastPageButton.innerHTML = totalPages;
+        lastPageButton.onclick = () => {
+            currentPage = totalPages;
+            updateRecordsList();
+        };
+        paginationContainer.appendChild(lastPageButton);
+        
+        const nextGroupButton = document.createElement('button');
+        nextGroupButton.innerHTML = '<i class="fas fa-angle-double-right"></i>';
+        nextGroupButton.title = '下一組頁面';
+        nextGroupButton.onclick = () => {
+            currentPage = endPage + 1;
+            updateRecordsList();
+        };
+        paginationContainer.appendChild(nextGroupButton);
+    }
+    
     // 下一頁按鈕
     const nextButton = document.createElement('button');
-    nextButton.innerHTML = '下一頁';
+    nextButton.innerHTML = '下一頁 <i class="fas fa-chevron-right"></i>';
     nextButton.disabled = currentPage === totalPages;
     nextButton.onclick = () => {
         if (currentPage < totalPages) {
@@ -371,7 +704,7 @@ function updatePagination(totalPages) {
     // 添加分頁信息
     const paginationInfo = document.createElement('span');
     paginationInfo.className = 'pagination-info';
-    paginationInfo.innerHTML = `第 ${currentPage} 頁，共 ${totalPages} 頁`;
+    paginationInfo.innerHTML = `第 ${currentPage} 頁，共 ${totalPages} 頁 (第 ${currentGroup} 組)`;
     paginationContainer.appendChild(paginationInfo);
 }
 
@@ -392,6 +725,84 @@ function updateStats() {
     document.getElementById('balance').textContent = balance.toLocaleString();
 }
 
+// 編輯記錄
+function editRecord(id) {
+    const record = records.find(record => record.id === id);
+    if (!record) {
+        alert('找不到要編輯的記錄！');
+        return;
+    }
+    
+    // 填入表單數據
+    document.getElementById('date').value = record.date;
+    document.getElementById('type').value = record.type;
+    document.getElementById('category').value = record.category;
+    document.getElementById('amount').value = record.amount;
+    document.getElementById('description').value = record.description;
+    
+    // 將表單滾動到視窗頂部
+    document.querySelector('.form-container').scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start'
+    });
+    
+    // 改變表單按鈕為更新模式
+    const form = document.getElementById('expenseForm');
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton.innerHTML;
+    const originalButtonColor = submitButton.style.backgroundColor;
+    
+    // 修改按鈕樣式和文字
+    submitButton.innerHTML = '<i class="fas fa-save"></i> 更新記錄';
+    submitButton.style.backgroundColor = '#17a2b8';
+    
+    // 添加數據屬性來標記編輯模式
+    form.setAttribute('data-edit-id', id);
+    form.setAttribute('data-original-button-text', originalButtonText);
+    form.setAttribute('data-original-button-color', originalButtonColor);
+    
+    // 添加取消按鈕
+    if (!form.querySelector('.cancel-edit-btn')) {
+        const cancelButton = document.createElement('button');
+        cancelButton.type = 'button';
+        cancelButton.className = 'cancel-edit-btn';
+        cancelButton.innerHTML = '<i class="fas fa-times"></i> 取消編輯';
+        cancelButton.style.backgroundColor = '#6c757d';
+        cancelButton.style.marginLeft = '10px';
+        cancelButton.onclick = cancelEdit;
+        submitButton.parentNode.insertBefore(cancelButton, submitButton.nextSibling);
+    }
+}
+
+// 取消編輯
+function cancelEdit() {
+    const form = document.getElementById('expenseForm');
+    const submitButton = form.querySelector('button[type="submit"]');
+    const cancelButton = form.querySelector('.cancel-edit-btn');
+    
+    // 恢復按鈕原始狀態
+    const originalButtonText = form.getAttribute('data-original-button-text');
+    const originalButtonColor = form.getAttribute('data-original-button-color');
+    
+    submitButton.innerHTML = originalButtonText;
+    submitButton.style.backgroundColor = originalButtonColor;
+    
+    // 移除編輯模式標記
+    form.removeAttribute('data-edit-id');
+    form.removeAttribute('data-original-button-text');
+    form.removeAttribute('data-original-button-color');
+    
+    // 移除取消按鈕
+    if (cancelButton) {
+        cancelButton.remove();
+    }
+    
+    // 重置表單
+    form.reset();
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('date').value = today;
+}
+
 // 刪除記錄
 function deleteRecord(id) {
     if (confirm('確定要刪除這筆記錄嗎？')) {
@@ -399,6 +810,7 @@ function deleteRecord(id) {
         localStorage.setItem('records', JSON.stringify(records));
         updateRecordsList();
         updateStats();
+        initMonthSelector(); // 重新初始化月份選擇器
         updateCharts();
     }
 }
@@ -467,19 +879,24 @@ function updateCardRecordsList() {
     const totalPages = Math.ceil(cardRecords.length / itemsPerPage);
     
     // 獲取當前頁的記錄
-    const startIndex = (currentPage - 1) * itemsPerPage;
+    const startIndex = (currentCardPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const currentPageRecords = cardRecords.slice(startIndex, endIndex);
     
     // 顯示當前頁的記錄
     currentPageRecords.forEach((record, index) => {
         const row = document.createElement('tr');
+        const actualIndex = cardRecords.indexOf(record);
         row.innerHTML = `
             <td>${record.date}</td>
+            <td>${getCategoryName(record.category || 'other')}</td>
             <td>${record.amount.toLocaleString()}</td>
             <td>${record.description}</td>
             <td>
-                <button class="delete-btn" onclick="deleteCardRecord(${startIndex + index})">
+                <button class="edit-btn" onclick="editCardRecord(${actualIndex})">
+                    <i class="fas fa-edit"></i> 編輯
+                </button>
+                <button class="delete-btn" onclick="deleteCardRecord(${actualIndex})">
                     <i class="fas fa-trash"></i> 刪除
                 </button>
             </td>
@@ -493,48 +910,125 @@ function updateCardRecordsList() {
 
 // 更新刷卡記錄分頁控制
 function updateCardPagination(totalPages) {
-    const paginationContainer = document.createElement('div');
-    paginationContainer.className = 'pagination';
-    
-    // 上一頁按鈕
-    if (currentPage > 1) {
-        const prevButton = document.createElement('button');
-        prevButton.textContent = '上一頁';
-        prevButton.onclick = () => {
-            currentPage--;
-            updateCardRecordsList();
-        };
-        paginationContainer.appendChild(prevButton);
-    }
-    
-    // 頁碼按鈕
-    for (let i = 1; i <= totalPages; i++) {
-        const pageButton = document.createElement('button');
-        pageButton.textContent = i;
-        pageButton.className = i === currentPage ? 'active' : '';
-        pageButton.onclick = () => {
-            currentPage = i;
-            updateCardRecordsList();
-        };
-        paginationContainer.appendChild(pageButton);
-    }
-    
-    // 下一頁按鈕
-    if (currentPage < totalPages) {
-        const nextButton = document.createElement('button');
-        nextButton.textContent = '下一頁';
-        nextButton.onclick = () => {
-            currentPage++;
-            updateCardRecordsList();
-        };
-        paginationContainer.appendChild(nextButton);
-    }
-    
     // 移除舊的分頁控制（如果存在）
     const oldPagination = document.querySelector('.card-records-list .pagination');
     if (oldPagination) {
         oldPagination.remove();
     }
+    
+    if (totalPages <= 1) {
+        return; // 如果只有一頁或沒有資料，不顯示分頁控制
+    }
+    
+    const paginationContainer = document.createElement('div');
+    paginationContainer.className = 'pagination';
+    
+    const maxPagesDisplay = 10; // 一次最多顯示10個頁面按鈕
+    
+    // 計算當前頁面組的範圍
+    const currentGroup = Math.ceil(currentCardPage / maxPagesDisplay);
+    const startPage = (currentGroup - 1) * maxPagesDisplay + 1;
+    const endPage = Math.min(startPage + maxPagesDisplay - 1, totalPages);
+    
+    // 上一頁按鈕
+    const prevButton = document.createElement('button');
+    prevButton.innerHTML = '<i class="fas fa-chevron-left"></i> 上一頁';
+    prevButton.disabled = currentCardPage === 1;
+    prevButton.onclick = () => {
+        if (currentCardPage > 1) {
+            currentCardPage--;
+            updateCardRecordsList();
+        }
+    };
+    paginationContainer.appendChild(prevButton);
+    
+    // 上一組按鈕（如果不是第一組）
+    if (startPage > 1) {
+        const prevGroupButton = document.createElement('button');
+        prevGroupButton.innerHTML = '<i class="fas fa-angle-double-left"></i>';
+        prevGroupButton.title = '上一組頁面';
+        prevGroupButton.onclick = () => {
+            currentCardPage = startPage - 1;
+            updateCardRecordsList();
+        };
+        paginationContainer.appendChild(prevGroupButton);
+        
+        // 顯示第一頁
+        const firstPageButton = document.createElement('button');
+        firstPageButton.innerHTML = '1';
+        firstPageButton.onclick = () => {
+            currentCardPage = 1;
+            updateCardRecordsList();
+        };
+        paginationContainer.appendChild(firstPageButton);
+        
+        // 省略號
+        if (startPage > 2) {
+            const ellipsis = document.createElement('span');
+            ellipsis.innerHTML = '...';
+            ellipsis.className = 'pagination-ellipsis';
+            paginationContainer.appendChild(ellipsis);
+        }
+    }
+    
+    // 頁碼按鈕（當前組的頁面）
+    for (let i = startPage; i <= endPage; i++) {
+        const pageButton = document.createElement('button');
+        pageButton.innerHTML = i;
+        pageButton.className = currentCardPage === i ? 'active' : '';
+        pageButton.onclick = () => {
+            currentCardPage = i;
+            updateCardRecordsList();
+        };
+        paginationContainer.appendChild(pageButton);
+    }
+    
+    // 下一組按鈕（如果不是最後一組）
+    if (endPage < totalPages) {
+        // 省略號
+        if (endPage < totalPages - 1) {
+            const ellipsis = document.createElement('span');
+            ellipsis.innerHTML = '...';
+            ellipsis.className = 'pagination-ellipsis';
+            paginationContainer.appendChild(ellipsis);
+        }
+        
+        // 顯示最後一頁
+        const lastPageButton = document.createElement('button');
+        lastPageButton.innerHTML = totalPages;
+        lastPageButton.onclick = () => {
+            currentCardPage = totalPages;
+            updateCardRecordsList();
+        };
+        paginationContainer.appendChild(lastPageButton);
+        
+        const nextGroupButton = document.createElement('button');
+        nextGroupButton.innerHTML = '<i class="fas fa-angle-double-right"></i>';
+        nextGroupButton.title = '下一組頁面';
+        nextGroupButton.onclick = () => {
+            currentCardPage = endPage + 1;
+            updateCardRecordsList();
+        };
+        paginationContainer.appendChild(nextGroupButton);
+    }
+    
+    // 下一頁按鈕
+    const nextButton = document.createElement('button');
+    nextButton.innerHTML = '下一頁 <i class="fas fa-chevron-right"></i>';
+    nextButton.disabled = currentCardPage === totalPages;
+    nextButton.onclick = () => {
+        if (currentCardPage < totalPages) {
+            currentCardPage++;
+            updateCardRecordsList();
+        }
+    };
+    paginationContainer.appendChild(nextButton);
+    
+    // 添加分頁信息
+    const paginationInfo = document.createElement('span');
+    paginationInfo.className = 'pagination-info';
+    paginationInfo.innerHTML = `第 ${currentCardPage} 頁，共 ${totalPages} 頁 (第 ${currentGroup} 組)`;
+    paginationContainer.appendChild(paginationInfo);
     
     // 添加新的分頁控制
     document.querySelector('.card-records-list').appendChild(paginationContainer);
@@ -553,6 +1047,7 @@ function deleteCardRecord(index) {
         // 更新顯示
         updateCardRecordsList();
         updateCardUsage();
+        updateCardCategoryStackedChart(); // 更新刷卡分類圖表
     }
 }
 
@@ -580,55 +1075,197 @@ function updateLimitHistoryWithDeletedRecord(deletedRecord) {
     }
 }
 
+// 編輯刷卡記錄
+function editCardRecord(index) {
+    const record = cardRecords[index];
+    if (!record) {
+        alert('找不到要編輯的記錄！');
+        return;
+    }
+    
+    // 填入表單數據
+    document.getElementById('cardDate').value = record.date;
+    document.getElementById('cardAmount').value = record.amount;
+    document.getElementById('cardCategory').value = record.category || 'other';
+    document.getElementById('cardDescription').value = record.description;
+    
+    // 將表單滾動到視窗頂部
+    document.querySelector('.card-records-management .form-container').scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'start'
+    });
+    
+    // 改變表單按鈕為更新模式
+    const form = document.getElementById('cardExpenseForm');
+    const submitButton = form.querySelector('button[type="submit"]');
+    const originalButtonText = submitButton.innerHTML;
+    const originalButtonColor = submitButton.style.backgroundColor;
+    
+    // 修改按鈕樣式和文字
+    submitButton.innerHTML = '<i class="fas fa-save"></i> 更新刷卡記錄';
+    submitButton.style.backgroundColor = '#17a2b8';
+    
+    // 添加數據屬性來標記編輯模式
+    form.setAttribute('data-edit-index', index);
+    form.setAttribute('data-original-button-text', originalButtonText);
+    form.setAttribute('data-original-button-color', originalButtonColor);
+    
+    // 添加取消按鈕
+    if (!form.querySelector('.cancel-edit-btn')) {
+        const cancelButton = document.createElement('button');
+        cancelButton.type = 'button';
+        cancelButton.className = 'cancel-edit-btn';
+        cancelButton.innerHTML = '<i class="fas fa-times"></i> 取消編輯';
+        cancelButton.style.backgroundColor = '#6c757d';
+        cancelButton.style.marginLeft = '10px';
+        cancelButton.onclick = cancelCardEdit;
+        submitButton.parentNode.insertBefore(cancelButton, submitButton.nextSibling);
+    }
+}
+
+// 取消刷卡記錄編輯
+function cancelCardEdit() {
+    const form = document.getElementById('cardExpenseForm');
+    const submitButton = form.querySelector('button[type="submit"]');
+    const cancelButton = form.querySelector('.cancel-edit-btn');
+    
+    // 恢復按鈕原始狀態
+    const originalButtonText = form.getAttribute('data-original-button-text');
+    const originalButtonColor = form.getAttribute('data-original-button-color');
+    
+    submitButton.innerHTML = originalButtonText;
+    submitButton.style.backgroundColor = originalButtonColor;
+    
+    // 移除編輯模式標記
+    form.removeAttribute('data-edit-index');
+    form.removeAttribute('data-original-button-text');
+    form.removeAttribute('data-original-button-color');
+    
+    // 移除取消按鈕
+    if (cancelButton) {
+        cancelButton.remove();
+    }
+    
+    // 重置表單
+    form.reset();
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('cardDate').value = today;
+}
+
+// 更新歷史月份限額記錄（編輯記錄時）
+function updateLimitHistoryWithEditedRecord(oldRecord, newRecord) {
+    // 處理舊記錄（減去舊金額）
+    updateLimitHistoryWithDeletedRecord(oldRecord);
+    // 處理新記錄（加上新金額）
+    updateLimitHistoryWithNewRecord(newRecord);
+}
+
 // 處理刷卡記錄表單提交
 document.getElementById('cardExpenseForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
     const date = document.getElementById('cardDate').value;
     const amount = parseFloat(document.getElementById('cardAmount').value);
+    const category = document.getElementById('cardCategory').value;
     const description = document.getElementById('cardDescription').value;
     
-    // 檢查是否超過限額
-    const recordBillingCycle = getBillingCycleMonth(date);
-    const currentBillingCycle = getCurrentBillingCycleMonth();
-    const isCurrentBillingCycle = recordBillingCycle === currentBillingCycle;
+    // 檢查是否為編輯模式
+    const editIndex = this.getAttribute('data-edit-index');
     
-    // 如果是當前週期的記錄，才檢查限額
-    if (isCurrentBillingCycle) {
-        const currentUsed = cardRecords.reduce((sum, record) => {
-            const recordBillingCycle = getBillingCycleMonth(record.date);
-            if (recordBillingCycle === currentBillingCycle) {
-                return sum + parseFloat(record.amount);
+    if (editIndex !== null) {
+        // 編輯模式：更新現有記錄
+        const index = parseInt(editIndex);
+        if (index >= 0 && index < cardRecords.length) {
+            // 檢查是否超過限額（編輯時需要排除原記錄的金額）
+            const recordBillingCycle = getBillingCycleMonth(date);
+            const currentBillingCycle = getCurrentBillingCycleMonth();
+            const isCurrentBillingCycle = recordBillingCycle === currentBillingCycle;
+            
+            if (isCurrentBillingCycle) {
+                const currentUsed = cardRecords.reduce((sum, record, i) => {
+                    if (i === index) return sum; // 排除正在編輯的記錄
+                    const recordBillingCycle = getBillingCycleMonth(record.date);
+                    if (recordBillingCycle === currentBillingCycle) {
+                        return sum + parseFloat(record.amount);
+                    }
+                    return sum;
+                }, 0);
+                
+                if (currentUsed + amount > cardLimit) {
+                    alert('此筆消費將超過本月信用卡限額！');
+                    return;
+                }
             }
-            return sum;
-        }, 0);
-        
-        if (currentUsed + amount > cardLimit) {
-            alert('此筆消費將超過本月信用卡限額！');
+            
+            // 儲存舊記錄以便更新歷史限額
+            const oldRecord = { ...cardRecords[index] };
+            
+            // 更新記錄
+            cardRecords[index] = {
+                date: date,
+                amount: amount,
+                category: category,
+                description: description
+            };
+            
+            // 更新歷史月份限額記錄
+            updateLimitHistoryWithEditedRecord(oldRecord, cardRecords[index]);
+            
+            // 取消編輯模式
+            cancelCardEdit();
+            
+            alert('刷卡記錄已成功更新！');
+        } else {
+            alert('找不到要更新的記錄！');
             return;
         }
+    } else {
+        // 新增模式
+        // 檢查是否超過限額
+        const recordBillingCycle = getBillingCycleMonth(date);
+        const currentBillingCycle = getCurrentBillingCycleMonth();
+        const isCurrentBillingCycle = recordBillingCycle === currentBillingCycle;
+        
+        // 如果是當前週期的記錄，才檢查限額
+        if (isCurrentBillingCycle) {
+            const currentUsed = cardRecords.reduce((sum, record) => {
+                const recordBillingCycle = getBillingCycleMonth(record.date);
+                if (recordBillingCycle === currentBillingCycle) {
+                    return sum + parseFloat(record.amount);
+                }
+                return sum;
+            }, 0);
+            
+            if (currentUsed + amount > cardLimit) {
+                alert('此筆消費將超過本月信用卡限額！');
+                return;
+            }
+        }
+        
+        // 新增記錄
+        const newRecord = {
+            date: date,
+            amount: amount,
+            category: category,
+            description: description
+        };
+        
+        cardRecords.push(newRecord);
+        
+        // 更新歷史月份限額記錄
+        updateLimitHistoryWithNewRecord(newRecord);
+        
+        // 重置表單
+        this.reset();
+        document.getElementById('cardDate').value = new Date().toISOString().split('T')[0];
     }
     
-    // 新增記錄
-    const newRecord = {
-        date: date,
-        amount: amount,
-        description: description
-    };
-    
-    cardRecords.push(newRecord);
     localStorage.setItem('cardRecords', JSON.stringify(cardRecords));
-    
-    // 更新歷史月份限額記錄
-    updateLimitHistoryWithNewRecord(newRecord);
     
     // 更新顯示
     updateCardRecordsList();
     updateCardUsage();
-    
-    // 重置表單
-    this.reset();
-    document.getElementById('cardDate').value = new Date().toISOString().split('T')[0];
+    updateCardCategoryStackedChart(); // 更新刷卡分類圖表
 });
 
 // 更新歷史月份限額記錄
@@ -1156,6 +1793,7 @@ document.getElementById('importFile').addEventListener('change', function(e) {
                 // 更新顯示
                 updateRecordsList();
                 updateStats();
+                initMonthSelector(); // 重新初始化月份選擇器
                 updateCharts();
                 updateCardRecordsList();
                 updateCardUsage();
@@ -1211,6 +1849,71 @@ function updateExpenseChart() {
     window.categoryChart.data.datasets[0].data = data;
     window.categoryChart.data.datasets[0].backgroundColor = backgroundColors;
     window.categoryChart.update();
+}
+
+// 更新刷卡分類堆疊條形圖
+function updateCardCategoryStackedChart() {
+    const cardCategoryAmount = {};
+    const cardCategoryCount = {};
+    
+    // 定義刷卡記錄的所有類別（不包含薪資和儲蓄）
+    const cardCategories = ['food', 'transport', 'shopping', 'entertainment', 'payment', 'fee', 'other'];
+    
+    // 初始化所有類別為0
+    cardCategories.forEach(category => {
+        cardCategoryAmount[category] = 0;
+        cardCategoryCount[category] = 0;
+    });
+    
+    // 計算各類別刷卡總額和次數
+    cardRecords.forEach(record => {
+        const category = record.category || 'other';
+        if (cardCategoryAmount.hasOwnProperty(category)) {
+            cardCategoryAmount[category] += parseFloat(record.amount);
+            cardCategoryCount[category] += 1;
+        }
+    });
+    
+    // 計算總金額和總次數
+    const totalAmount = Object.values(cardCategoryAmount).reduce((sum, amount) => sum + amount, 0);
+    const totalCount = Object.values(cardCategoryCount).reduce((sum, count) => sum + count, 0);
+    
+    // 計算金額百分比和次數百分比
+    const amountPercentageData = {};
+    const countPercentageData = {};
+    
+    if (totalAmount > 0) {
+        cardCategories.forEach(category => {
+            amountPercentageData[category] = (cardCategoryAmount[category] / totalAmount) * 100;
+        });
+    } else {
+        cardCategories.forEach(category => {
+            amountPercentageData[category] = 0;
+        });
+    }
+    
+    if (totalCount > 0) {
+        cardCategories.forEach(category => {
+            countPercentageData[category] = (cardCategoryCount[category] / totalCount) * 100;
+        });
+    } else {
+        cardCategories.forEach(category => {
+            countPercentageData[category] = 0;
+        });
+    }
+    
+    // 更新圖表數據
+    window.cardCategoryStackedChart.data.datasets.forEach((dataset, index) => {
+        const category = cardCategories[index];
+        if (category) {
+            dataset.data = [
+                amountPercentageData[category], // 金額比例
+                countPercentageData[category]   // 次數比例
+            ];
+        }
+    });
+    
+    window.cardCategoryStackedChart.update();
 }
 
 // 更新餘額趨勢圖表
